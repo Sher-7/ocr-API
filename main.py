@@ -20,10 +20,9 @@ def root():
 @app.get('/api/init') # img_path="./IMG_1.jpg"
 
 def primaryFunc(img_path):
-
-    resp = urllib.urlopen(img_path)
-	image = np.asarray(bytearray(resp.read()), dtype="uint8")
-	image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+    resp = urllib.request.urlopen(img_path)
+    image = np.asarray(bytearray(resp.read()), dtype="uint8")
+    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
     # read image
     img = cv2.imread(image, cv2.IMREAD_UNCHANGED)
 
