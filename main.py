@@ -8,6 +8,7 @@ from paddleocr import PaddleOCR
 import easyocr
 from datetime import datetime
 import urllib
+from urllib.request import urlopen
 
 from fastapi import FastAPI
 
@@ -17,12 +18,20 @@ app = FastAPI()
 def root():
     return {"Hello":"World"}
 
-@app.get('/api/init') # img_path="./IMG_1.jpg"
+tkens={}
 
+@app.get('/api/init') # img_path="./IMG_1.jpg"
 def primaryFunc(img_path):
-    resp = urllib.request.urlopen(img_path)
+    url = img_path
+    resp = urlopen(url)
     image = np.asarray(bytearray(resp.read()), dtype="uint8")
-    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+    image = cv2.imdecode(image, cv2.IMREAD_COLOR) # The image object
+    # print(type(image))
+    curr_datetime = datetime.now().strftime('%Y-%m-%d %H-%M-%S')
+    b1 = curr_datetime+'.jpg'
+    # print(b1)
+    cv2.imwrite(b1, image)
+    image = 'C:/Users/sheri/bill-ocr-api/'+b1
     # read image
     img = cv2.imread(image, cv2.IMREAD_UNCHANGED)
 
@@ -116,14 +125,27 @@ def primaryFunc(img_path):
                 Tokens['meter_id'].append(result[0][1])
                 print(result[0][1])
 
+    global tkens
+    tkens = Tokens
     print(itemList)
     print(Tokens)
     return Tokens
 
 @app.get('/api/reading')
-def getReading(coordinates,img_path):
+def getReading(img_path):
+    coordinates = tkens['roi_coordinates'][0]
+    url = img_path
+    resp = urlopen(url)
+    image = np.asarray(bytearray(resp.read()), dtype="uint8")
+    image = cv2.imdecode(image, cv2.IMREAD_COLOR) # The image object
+    # print(type(image))
+    curr_datetime = datetime.now().strftime('%Y-%m-%d %H-%M-%S')
+    b1 = curr_datetime+'.jpg'
+    # print(b1)
+    cv2.imwrite(b1, image)
+    image = 'C:/Users/sheri/bill-ocr-api/'+b1
     #read image
-    img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+    img = cv2.imread(image, cv2.IMREAD_UNCHANGED)
 
     # dictionary to store cropped coordinates
     itemList = {
@@ -160,7 +182,7 @@ def getReading(coordinates,img_path):
         dim = (width, height)
         img_res = cv2.resize(roi_cropped, dim, interpolation = cv2.INTER_AREA)
         #show cropped image
-        cv2.imshow(item, img_res)
+        # cv2.imshow(item, img_res)
 
         #save the cropped image
         itemList[item] = img_res
@@ -202,4 +224,72 @@ def getReading(coordinates,img_path):
     print(itemList)
     print(Tokens)
 
+    return Tokens
+
+@app.get('/api/bill')
+def getBill(url1, url2):
+    urlA = url1
+    urlB = url2
+    urlist = [urlA, urlB]
+    # dictionary to store extracted consumer, meter, account numbers via OCR
+    Tokens = {
+      "consumer_no": [],
+      "meter_no": [],
+      "account_no": []
+    }
+    
+    counter = 0
+    for i in urlist:
+        # Initialize PaddleOCR
+        ocr = PaddleOCR()
+        
+        #read image from url
+        resp = urlopen(i)
+        image = np.asarray(bytearray(resp.read()), dtype="uint8")
+        image = cv2.imdecode(image, cv2.IMREAD_COLOR) # The image object
+        print(type(image))
+        curr_datetime = datetime.now().strftime('%Y-%m-%d %H-%M-%S')
+        b1 = curr_datetime+'.jpg'
+        print(b1)
+        cv2.imwrite(b1, image)
+        image_path = 'C:/Users/sheri/bill-ocr-api/'+b1
+        
+        # Provide the path to the image you want to extract text from
+        img_path= image_path
+
+        # Perform OCR on the image
+        result = ocr.ocr(img_path)
+
+#         print(result)
+        output_text = ' '.join(item[1][0] for item in result[0])
+
+        # Print the output text
+        text = output_text
+#         print(text)
+#         print(type(text))
+
+        # Split the text into tokens based on whitespace
+        tokens = text.split()
+        print(tokens)
+        counter +=1
+        
+        if counter == 1:
+            #account no
+            account = tokens.index('AccountNumber')
+            account_no = tokens[account+2]
+            Tokens['account_no'].append(account_no)
+        else:
+            #consumer no
+            consumer = tokens.index('10')
+            consumer_no = tokens[consumer-1]
+            consumer_no = consumer_no[0:8]
+            Tokens['consumer_no'].append(consumer_no)
+
+            #meter no
+            meter = tokens.index('10')
+            meter_no = tokens[meter+1]
+            meter_no = meter_no[8::]
+            Tokens['meter_no'].append(meter_no)
+
+    print(Tokens)
     return Tokens
